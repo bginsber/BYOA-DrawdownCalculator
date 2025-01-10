@@ -13,12 +13,6 @@ Understanding the asymmetric nature of investment losses is crucial for risk man
 
 Visit the live calculator at: 
 
-## 💻 Local Development
-
-1. Clone the repository
-2. Open `index.html` in your browser
-3. No build process or dependencies required!
-
 ## 📊 Features
 
 - **Real-time Calculations**: Instantly see how much gain is needed to recover from a loss

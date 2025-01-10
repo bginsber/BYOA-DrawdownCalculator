@@ -3,11 +3,11 @@ const initialInvestmentInput = document.getElementById('initial-investment');
 const lossPercentageInput = document.getElementById('loss-percentage');
 const dollarLossInput = document.getElementById('dollar-loss-input');
 const requiredGainElement = document.getElementById('required-gain');
-const dollarLossElement = document.getElementById('dollar-loss');
-const dollarGainElement = document.getElementById('dollar-gain');
-const dollarResultsContainer = document.getElementById('dollar-results');
 const chartContainer = document.getElementById('chart-container');
 const visualizeBtn = document.getElementById('visualize-btn');
+const modeToggle = document.getElementById('mode-toggle');
+const firstInputLabel = document.getElementById('first-input-label');
+const secondInputLabel = document.getElementById('second-input-label');
 let recoveryChart = null;
 
 // Calculate required gain percentage
@@ -17,29 +17,30 @@ function calculateRequiredGain(lossPercentage) {
     return gain * 100;
 }
 
-// Format currency
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(amount);
-}
-
 // Update calculations
 function updateCalculations(sourceInput) {
-    const initialInvestment = initialInvestmentInput.value ? parseFloat(initialInvestmentInput.value) : '';
+    const firstValue = initialInvestmentInput.value ? parseFloat(initialInvestmentInput.value) : '';
     let lossPercentage = 0;
     let dollarLoss = 0;
 
     if (sourceInput === 'percentage') {
         lossPercentage = parseFloat(lossPercentageInput.value) || 0;
-        dollarLoss = initialInvestment * (lossPercentage / 100);
-        dollarLossInput.value = dollarLoss.toFixed(2);
+        if (isATHMode) {
+            dollarLoss = firstValue * (lossPercentage / 100);
+            dollarLossInput.value = (firstValue - dollarLoss).toFixed(2);
+        } else {
+            dollarLoss = firstValue * (lossPercentage / 100);
+            dollarLossInput.value = dollarLoss.toFixed(2);
+        }
     } else if (sourceInput === 'dollar') {
-        dollarLoss = parseFloat(dollarLossInput.value) || 0;
-        lossPercentage = (dollarLoss / initialInvestment) * 100;
+        if (isATHMode) {
+            const currentPrice = parseFloat(dollarLossInput.value) || 0;
+            dollarLoss = firstValue - currentPrice;
+            lossPercentage = (dollarLoss / firstValue) * 100;
+        } else {
+            dollarLoss = parseFloat(dollarLossInput.value) || 0;
+            lossPercentage = (dollarLoss / firstValue) * 100;
+        }
         lossPercentageInput.value = lossPercentage.toFixed(2);
     }
 
@@ -56,36 +57,38 @@ function updateCalculations(sourceInput) {
     }
 }
 
-// Add event listeners
-initialInvestmentInput.addEventListener('input', () => updateCalculations('percentage'));
-lossPercentageInput.addEventListener('input', () => updateCalculations('percentage'));
-dollarLossInput.addEventListener('input', () => updateCalculations('dollar'));
-visualizeBtn.addEventListener('click', () => {
-    if (chartContainer.style.display === 'none') {
-        chartContainer.style.display = 'block';
-        createRecoveryChart();
-        visualizeBtn.textContent = 'Hide Visualization';
-    } else {
-        chartContainer.style.display = 'none';
-        visualizeBtn.textContent = 'Visualize Recovery Path';
-    }
-});
+// Replace toggle event listener with button listeners
+const breakevenBtn = document.getElementById('breakeven-btn');
+const athBtn = document.getElementById('ath-btn');
+let isATHMode = false;
 
-// Initialize
-updateCalculations('percentage');
-
-// Clear all inputs on page load
-window.onload = function() {
-    // Clear all input fields
-    initialInvestmentInput.value = '';
-    dollarLossInput.value = '';
-    lossPercentageInput.value = '';
-    
-    // Reset result display
-    requiredGainElement.textContent = '-%';
+function updateButtonStates() {
+    breakevenBtn.classList.toggle('active', !isATHMode);
+    athBtn.classList.toggle('active', isATHMode);
 }
 
-// Add this function to create the chart
+function switchMode(mode) {
+    isATHMode = mode === 'ath';
+    updateButtonStates();
+    
+    if (isATHMode) {
+        // ATH Mode
+        firstInputLabel.textContent = 'All-Time High ($)';
+        secondInputLabel.textContent = 'Current Price ($)';
+        lossPercentageInput.placeholder = 'Enter drawdown %';
+    } else {
+        // Initial Investment Mode
+        firstInputLabel.textContent = 'Initial Investment ($)';
+        secondInputLabel.textContent = 'Dollar Loss ($)';
+        lossPercentageInput.placeholder = 'Enter 0-99.99';
+    }
+    updateCalculations('dollar');
+}
+
+breakevenBtn.addEventListener('click', () => switchMode('breakeven'));
+athBtn.addEventListener('click', () => switchMode('ath'));
+
+// Create recovery chart
 function createRecoveryChart() {
     const currentLoss = parseFloat(lossPercentageInput.value) || 0;
     const currentGain = calculateRequiredGain(currentLoss);
@@ -101,7 +104,7 @@ function createRecoveryChart() {
         gains.push(calculateRequiredGain(loss));
     }
     
-    // Make sure we include the exact current loss point if it's not already in the array
+    // Make sure we include the exact current loss point
     if (!losses.includes(currentLoss)) {
         losses.push(currentLoss);
         gains.push(currentGain);
@@ -157,7 +160,9 @@ function createRecoveryChart() {
             plugins: {
                 title: {
                     display: true,
-                    text: `Recovery Path: ${currentLoss.toFixed(1)}% Loss → ${currentGain.toFixed(1)}% Required Gain`,
+                    text: isATHMode 
+                        ? `Recovery Path: Current Price to All-Time High`
+                        : `Recovery Path: ${currentLoss.toFixed(1)}% Loss → ${currentGain.toFixed(1)}% Required Gain`,
                     font: {
                         size: 16
                     }
@@ -193,4 +198,32 @@ function createRecoveryChart() {
             }
         }
     });
+}
+
+// Add event listeners
+initialInvestmentInput.addEventListener('input', () => updateCalculations('percentage'));
+lossPercentageInput.addEventListener('input', () => updateCalculations('percentage'));
+dollarLossInput.addEventListener('input', () => updateCalculations('dollar'));
+visualizeBtn.addEventListener('click', () => {
+    if (chartContainer.style.display === 'none') {
+        chartContainer.style.display = 'block';
+        createRecoveryChart();
+        visualizeBtn.textContent = 'Hide Visualization';
+        visualizeBtn.classList.add('active');
+    } else {
+        chartContainer.style.display = 'none';
+        visualizeBtn.textContent = 'Visualize Recovery Path';
+        visualizeBtn.classList.remove('active');
+    }
+});
+
+// Initialize
+updateCalculations('percentage');
+
+// Clear all inputs on page load
+window.onload = function() {
+    initialInvestmentInput.value = '';
+    dollarLossInput.value = '';
+    lossPercentageInput.value = '';
+    requiredGainElement.textContent = '-%';
 }
